@@ -14,16 +14,17 @@ import NotFoundPage from './pages/NotFoundPage';
 const Router = () => {
   return (
     <Routes>
-      <Route path="/login" element=<AuthPage /> />
-      <Route path="/" element=<DashboardPage /> />
-      <Route path="/users" element=<UserManagementPage /> />
-      <Route path="/customers" element=<CustomerManagementPage /> />
-      <Route path="/products" element=<ProductManagementPage /> />
-      <Route path="/sales" element=<SalesTransactionPage /> />
-      <Route path="/receiving" element=<ReceivingTransactionPage /> />
-      <Route path="/reports" element=<ReportsPage /> />
-      <Route path="/customer-menu" element=<CustomerMenuTabletPage /> />
-      <Route path="*" element=<NotFoundPage /> />
+      <Route path="/login" element={<AuthPage />} />
+      <Route index element={<DashboardPage />} />
+      <Route path="/" element={<DashboardPage />} />
+      <Route path="/users" element={<UserManagementPage />} />
+      <Route path="/customers" element={<CustomerManagementPage />} />
+      <Route path="/products" element={<ProductManagementPage />} />
+      <Route path="/sales" element={<SalesTransactionPage />} />
+      <Route path="/receiving" element={<ReceivingTransactionPage />} />
+      <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/customer-menu" element={<CustomerMenuTabletPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 };
