@@ -74,7 +74,7 @@ const MainLayout = () => {
             <Outlet />
           </ErrorBoundary>
           <Box sx={{ mt: 5 }}>
-            Distributed by <a href="https://themewagon.com" target="_blank" rel="noopener noreferrer">ThemeWagon</a>
+            Created & Modified by <a href="https://www.instagram.com/bin_mori" target="_blank" rel="noopener noreferrer">bin_mori</a>
           </Box>
         </OutletDiv>
       </Main>
