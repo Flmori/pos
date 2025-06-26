@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Typography, Grid, Dialog, DialogTitle, DialogContent, DialogActions, Button, Box } from '@mui/material';
+import axios from 'axios';
 
 // project import
 import Breadcrumb from 'component/Breadcrumb';
@@ -20,24 +21,11 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { addPdfHeader } from 'layout/PdfHeader/PdfHeader.jsx';
 
-// Mock data for products
-const productsData = [
-  { id: 1, code: 'P001', name: 'Produk A', price: 50000, stock: 100, category: 'Kopi Klasik', image: null },
-  { id: 2, code: 'P002', name: 'Produk B', price: 75000, stock: 50, category: 'Kopi Signature', image: null },
-  { id: 3, code: 'P003', name: 'Produk C', price: 30000, stock: 200, category: 'Manual Brew', image: null },
-  { id: 4, code: 'P004', name: 'Produk D', price: 20000, stock: 150, category: 'Non-Kopi', image: null }
-];
-
-// Mock data for members
-const membersData = [
-  { id: 'M001', name: 'Member One', discount: 10 },
-  { id: 'M002', name: 'Member Two', discount: 5 }
-];
-
 const categoriesForMenu = ['Semua', 'Kopi Klasik', 'Kopi Signature', 'Manual Brew', 'Non-Kopi', 'Pastry & Roti', 'Kudapan Berat', 'Dessert'];
 
 const SalesTransactionPage = () => {
   const [productInput, setProductInput] = useState('');
+  const [productsData, setProductsData] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [memberId, setMemberId] = useState('');
@@ -50,6 +38,41 @@ const SalesTransactionPage = () => {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const printRef = useRef(null);
 
+  // Fetch products from backend
+  useEffect(() => {
+    axios.get('http://localhost:8000/toko-kyu-ryu/api/products')
+      .then(response => {
+        // Map backend product fields to frontend expected fields
+        const mappedProducts = response.data.map(product => ({
+          id: product.id_barang,
+          name: product.nama_barang,
+          price: product.harga_jual,
+          stock: product.stok,
+          category: product.Category ? product.Category.nama_kategori : product.id_kategori,
+          // Include other fields if needed
+        }));
+        setProductsData(mappedProducts);
+      })
+      .catch(error => {
+        console.error('Error fetching products:', error);
+      });
+  }, []);
+
+  // Fetch member info by memberId
+  useEffect(() => {
+    if (memberId) {
+      axios.get(`http://localhost:8000/toko-kyu-ryu/api/customers/${memberId}`)
+        .then(response => {
+          setMemberInfo(response.data);
+        })
+        .catch(() => {
+          setMemberInfo(null);
+        });
+    } else {
+      setMemberInfo(null);
+    }
+  }, [memberId]);
+
   // Handle product input change
   const handleProductInputChange = (e) => {
     setProductInput(e.target.value);
@@ -59,8 +82,8 @@ const SalesTransactionPage = () => {
   // Auto-suggest products based on input
   const filteredProducts = productsData.filter(
     (p) =>
-      p.code.toLowerCase().includes(productInput.toLowerCase()) ||
-      p.name.toLowerCase().includes(productInput.toLowerCase())
+      (p.code && p.code.toLowerCase().includes(productInput.toLowerCase())) ||
+      (p.name && p.name.toLowerCase().includes(productInput.toLowerCase()))
   );
 
   // Select product from auto-suggest
@@ -74,7 +97,6 @@ const SalesTransactionPage = () => {
     if (!selectedProduct) return;
     const existingItem = cartItems.find((item) => item.id === selectedProduct.id);
     if (existingItem) {
-      // Increase quantity if stock allows
       if (existingItem.quantity < selectedProduct.stock) {
         setCartItems(
           cartItems.map((item) =>
@@ -124,8 +146,6 @@ const SalesTransactionPage = () => {
   const handleMemberIdChange = (e) => {
     const id = e.target.value.toUpperCase();
     setMemberId(id);
-    const member = membersData.find((m) => m.id === id);
-    setMemberInfo(member || null);
   };
 
   // Handle payment type change
@@ -156,7 +176,7 @@ const SalesTransactionPage = () => {
   }, [amountPaid, totalPayable, paymentType]);
 
   // Handle save transaction
-  const handleSaveTransaction = () => {
+  const handleSaveTransaction = async () => {
     if (cartItems.length === 0) {
       alert('Keranjang kosong');
       return;
@@ -165,9 +185,31 @@ const SalesTransactionPage = () => {
       alert('Jumlah bayar tidak cukup');
       return;
     }
-    // Simulate save
-    setTransactionSaved(true);
-    alert('Transaksi berhasil disimpan');
+    try {
+      const response = await axios.post('http://localhost:8000/toko-kyu-ryu/api/sales/transaction', {
+        customerId: memberInfo ? memberInfo.id_pelanggan : null,
+        paymentType,
+        amountPaid: paymentType === 'Tunai' ? parseFloat(amountPaid) : totalPayable,
+        cartItems: cartItems.map(item => ({
+          id_barang: item.id,
+          jumlah_barang: item.quantity,
+          harga_per_unit: item.price,
+          subtotal_item: item.price * item.quantity,
+        })),
+        discountAmount,
+        totalPrice,
+        totalPayable,
+      });
+      setTransactionSaved(true);
+      alert('Transaksi berhasil disimpan');
+    } catch (error) {
+      alert('Gagal menyimpan transaksi');
+      if (error.response && error.response.data) {
+        console.error('Save transaction error:', error.response.data);
+      } else {
+        console.error(error);
+      }
+    }
   };
 
   // Handle print receipt
@@ -192,7 +234,7 @@ const SalesTransactionPage = () => {
   };
 
   // Filter products for selected category
-  const productsForMenu = productsData.filter((p) => p.category === selectedCategory);
+  const productsForMenu = selectedCategory === 'Semua' ? productsData : productsData.filter((p) => p.category === selectedCategory);
 
   // Add product from menu to cart
   const handleAddProductFromMenu = (product) => {
@@ -220,15 +262,12 @@ const SalesTransactionPage = () => {
     if (!printRef.current) return;
     html2canvas(printRef.current, { scale: 2 }).then(async (canvas) => {
       const imgData = canvas.toDataURL('image/png');
-      // Use typical receipt paper size: 80mm width, height auto
-      const pdf = new jsPDF('p', 'mm', [80, 297]); // 80mm width, 297mm height (A4 height)
+      const pdf = new jsPDF('p', 'mm', [80, 297]);
       const pdfWidth = 80;
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      // Add header
       await addPdfHeader(pdf);
 
-      // Add image below header
       pdf.addImage(imgData, 'PNG', 0, 25, pdfWidth, pdfHeight);
 
       pdf.save(`Nota_Penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -299,7 +338,7 @@ const SalesTransactionPage = () => {
             <SalesDocumentCard
               city="Surabaya"
               transactionDate={new Date().toLocaleDateString()}
-              customerName={memberInfo ? memberInfo.name : 'Pelanggan Umum'}
+              customerName={memberInfo ? memberInfo.nama_pelanggan : 'Pelanggan Umum'}
               invoiceNumber={new Date().getTime()}
               items={cartItems.map(item => ({
                 id: item.id,

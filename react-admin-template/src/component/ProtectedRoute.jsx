@@ -6,7 +6,7 @@ const basePath = import.meta.env.VITE_APP_BASE_NAME || '';
 const ProtectedRoute = () => {
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
 
-  return isAuthenticated ? <Outlet /> : <Navigate to={`${basePath}/authentication/login`} replace />;
+  return isAuthenticated ? <Outlet /> : <Navigate to="/application/login" replace />;
 };
 
 export default ProtectedRoute;

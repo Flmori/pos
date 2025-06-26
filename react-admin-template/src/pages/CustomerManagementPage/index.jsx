@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 // material-ui
@@ -42,43 +42,64 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 const statuses = ['Active', 'Inactive'];
 
-const initialCustomers = [
-  {
-    id: 1,
-    name: 'John Doe',
-    phone: '08123456789',
-    address: 'Jl. Merdeka No. 1',
-    status: 'Active',
-    memberSince: '2022-01-01',
-    isMember: true,
-    memberId: 'M001'
-  },
-  {
-    id: 2,
-    name: 'Jane Smith',
-    phone: '08987654321',
-    address: 'Jl. Sudirman No. 2',
-    status: 'Inactive',
-    memberSince: '2021-06-15',
-    isMember: false,
-    memberId: ''
-  }
-];
+const mapBackendToFrontend = (customer) => ({
+  id: customer.id_pelanggan,
+  name: customer.nama_pelanggan,
+  waNumber: customer.no_wa,
+  address: customer.alamat,
+  status: customer.is_member ? 'Active' : 'Inactive',
+  memberSince: customer.tgl_daftar_member ? customer.tgl_daftar_member.split('T')[0] : '',
+  isMember: customer.is_member,
+  loyaltyPoints: customer.poin_loyalitas || 0
+});
+
+const mapFrontendToBackend = (customer) => ({
+  nama_pelanggan: customer.name,
+  no_wa: customer.waNumber,
+  alamat: customer.address,
+  is_member: customer.isMember,
+  tgl_daftar_member: customer.memberSince || null,
+  poin_loyalitas: customer.loyaltyPoints
+});
 
 const CustomerManagementPage = () => {
-  const [customers, setCustomers] = useState(initialCustomers);
+  const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
+    waNumber: '',
     address: '',
     status: '',
     memberSince: '',
     isMember: false,
-    memberId: ''
+    loyaltyPoints: 0
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const API_BASE_URL = 'http://localhost:8000/toko-kyu-ryu/api/customers'; // Updated to match backend server and path
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(API_BASE_URL);
+      if (!response.ok) throw new Error('Failed to fetch customers');
+      const data = await response.json();
+      const mapped = data.map(mapBackendToFrontend);
+      setCustomers(mapped);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
@@ -87,7 +108,7 @@ const CustomerManagementPage = () => {
   const filteredCustomers = customers.filter(
     (customer) =>
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm) ||
+      customer.waNumber.includes(searchTerm) ||
       customer.id.toString().includes(searchTerm)
   );
 
@@ -96,23 +117,23 @@ const CustomerManagementPage = () => {
       setEditingCustomer(customer);
       setFormData({
         name: customer.name,
-        phone: customer.phone,
+        waNumber: customer.waNumber,
         address: customer.address,
         status: customer.status,
         memberSince: customer.memberSince,
         isMember: customer.isMember || false,
-        memberId: customer.memberId || ''
+        loyaltyPoints: customer.loyaltyPoints || 0
       });
     } else {
       setEditingCustomer(null);
       setFormData({
         name: '',
-        phone: '',
+        waNumber: '',
         address: '',
         status: '',
         memberSince: '',
         isMember: false,
-        memberId: ''
+        loyaltyPoints: 0
       });
     }
     setOpenDialog(true);
@@ -130,55 +151,67 @@ const CustomerManagementPage = () => {
     }));
   };
 
-  const generateMemberId = () => {
-    // Simple auto-generate logic: M + zero-padded number
-    const maxId = customers.reduce((max, c) => {
-      const num = parseInt(c.memberId?.replace('M', '') || '0', 10);
-      return num > max ? num : max;
-    }, 0);
-    return `M${(maxId + 1).toString().padStart(3, '0')}`;
-  };
-
-  const handleSaveCustomer = () => {
+  const handleSaveCustomer = async () => {
     // Basic validation
-    if (!formData.name || !formData.phone || !formData.address || !formData.status || !formData.memberSince) {
+    if (!formData.name || !formData.waNumber || !formData.address || !formData.status || !formData.memberSince) {
       alert('Please fill all fields correctly.');
       return;
     }
-    if (formData.isMember && !formData.memberId) {
-      alert('Please provide Member ID.');
-      return;
-    }
 
-    let memberIdToSave = formData.memberId;
-    if (formData.isMember && !memberIdToSave) {
-      memberIdToSave = generateMemberId();
-    }
+    const customerToSave = {
+      ...formData,
+      isMember: formData.status === 'Active',
+    };
 
-    if (editingCustomer) {
-      // Update customer
-      setCustomers((prev) =>
-        prev.map((customer) =>
-          customer.id === editingCustomer.id
-            ? { ...customer, ...formData, memberId: memberIdToSave }
-            : customer
-        )
-      );
-    } else {
-      // Add new customer
-      const newCustomer = {
-        id: customers.length ? Math.max(...customers.map((c) => c.id)) + 1 : 1,
-        ...formData,
-        memberId: memberIdToSave
-      };
-      setCustomers((prev) => [...prev, newCustomer]);
+    const backendData = mapFrontendToBackend(customerToSave);
+
+    try {
+      let response;
+      if (editingCustomer) {
+        // Update customer
+        response = await fetch(`${API_BASE_URL}/${editingCustomer.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(backendData)
+        });
+      } else {
+        // Add new customer
+        response = await fetch(API_BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(backendData)
+        });
+      }
+      if (!response.ok) throw new Error('Failed to save customer');
+      const savedCustomer = await response.json();
+      const mappedCustomer = mapBackendToFrontend(savedCustomer);
+
+      setCustomers((prev) => {
+        if (editingCustomer) {
+          return prev.map((c) => (c.id === mappedCustomer.id ? mappedCustomer : c));
+        } else {
+          return [...prev, mappedCustomer];
+        }
+      });
+      setOpenDialog(false);
+      // Reload customers after save to refresh UI
+      fetchCustomers();
+    } catch (err) {
+      alert(err.message);
     }
-    setOpenDialog(false);
   };
 
-  const handleDeleteCustomer = (id) => {
+  const handleDeleteCustomer = async (id) => {
     if (window.confirm('Are you sure you want to delete this customer?')) {
-      setCustomers((prev) => prev.filter((customer) => customer.id !== id));
+      try {
+        const response = await fetch(`${API_BASE_URL}/${id}`, {
+          method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete customer');
+        setCustomers((prev) => prev.filter((customer) => customer.id !== id));
+      } catch (err) {
+        alert(err.message);
+      }
     }
   };
 
@@ -215,17 +248,19 @@ const CustomerManagementPage = () => {
                 value={searchTerm}
                 onChange={handleSearchChange}
               />
+              {loading && <Typography>Loading...</Typography>}
+              {error && <Typography color="error">{error}</Typography>}
               <TableContainer>
                 <Table>
                   <TableHead>
                     <TableRow>
                       <TableCell>ID Pelanggan</TableCell>
                       <TableCell>Nama Pelanggan</TableCell>
-                      <TableCell>No. Telepon</TableCell>
+                      <TableCell>Nomor WA</TableCell>
                       <TableCell>Alamat</TableCell>
                       <TableCell>Status Member</TableCell>
                       <TableCell>Tgl Daftar Member</TableCell>
-                      <TableCell>ID Member</TableCell>
+                      <TableCell>Point Loyalitas</TableCell>
                       <TableCell>Aksi</TableCell>
                     </TableRow>
                   </TableHead>
@@ -234,11 +269,11 @@ const CustomerManagementPage = () => {
                       <TableRow key={customer.id}>
                         <TableCell>{customer.id}</TableCell>
                         <TableCell>{customer.name}</TableCell>
-                        <TableCell>{customer.phone}</TableCell>
+                        <TableCell>{customer.waNumber}</TableCell>
                         <TableCell>{customer.address}</TableCell>
                         <TableCell>{customer.status}</TableCell>
                         <TableCell>{customer.memberSince}</TableCell>
-                        <TableCell>{customer.isMember ? customer.memberId : '-'}</TableCell>
+                        <TableCell>{customer.loyaltyPoints}</TableCell>
                         <TableCell>
                           <IconButton color="primary" onClick={() => handleOpenDialog(customer)}>
                             <EditIcon />
@@ -277,9 +312,9 @@ const CustomerManagementPage = () => {
           />
           <TextField
             margin="dense"
-            label="No. Telepon"
-            name="phone"
-            value={formData.phone}
+            label="Nomor WA"
+            name="waNumber"
+            value={formData.waNumber}
             onChange={handleFormChange}
             fullWidth
           />
@@ -318,6 +353,15 @@ const CustomerManagementPage = () => {
             InputLabelProps={{
               shrink: true
             }}
+          />
+          <TextField
+            margin="dense"
+            label="Point Loyalitas"
+            name="loyaltyPoints"
+            type="number"
+            value={formData.loyaltyPoints}
+            onChange={handleFormChange}
+            fullWidth
           />
         </DialogContent>
         <DialogActions>

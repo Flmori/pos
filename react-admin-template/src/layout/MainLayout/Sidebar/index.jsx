@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useContext } from 'react';
 
 // material-ui
 import { useTheme, styled } from '@mui/material/styles';
@@ -11,6 +11,7 @@ import PerfectScrollbar from 'react-perfect-scrollbar';
 // project import
 import MenuList from './MenuList';
 import { drawerWidth } from 'config.js';
+import { UserContext } from 'context/UserContext';
 
 // assets
 import logo from 'assets/images/logo.svg';
@@ -23,17 +24,15 @@ const Nav = styled('nav')(({ theme }) => ({
   }
 }));
 
-// Mock user info for demonstration
-const mockUser = {
-  username: 'Sarah',
-  role: 'Kasir'
-};
-
 // ==============================|| SIDEBAR ||============================== //
 
 const Sidebar = ({ drawerOpen, drawerToggle, window }) => {
   const theme = useTheme();
   const matchUpMd = useMediaQuery(theme.breakpoints.up('md'));
+
+  const { user } = useContext(UserContext);
+  const username = user?.username || 'Guest';
+  const role = user?.role || user?.nama_role || user?.Role?.nama_role || 'guest'; // Fallback to 'User' if no role is found
 
   // Filter menu items based on role (example: hide User Management if not Owner)
   // This requires passing user role to MenuList or filtering menu items here
@@ -62,20 +61,20 @@ const Sidebar = ({ drawerOpen, drawerToggle, window }) => {
         </Grid>
       </Box>
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', bgcolor: theme.palette.grey[100], mb: 1, borderRadius: 1 }}>
-        <Avatar sx={{ bgcolor: theme.palette.primary.main, mr: 2 }}>{mockUser.username.charAt(0)}</Avatar>
+        <Avatar sx={{ bgcolor: theme.palette.primary.main, mr: 2 }}>{username.charAt(0)}</Avatar>
         <Box>
           <Typography variant="subtitle1" noWrap>
-            {mockUser.username}
+            {username}
           </Typography>
           <Typography variant="caption" color="textSecondary" noWrap>
-            {mockUser.role}
+            {role}
           </Typography>
         </Box>
       </Box>
       <Divider />
       <PerfectScrollbar style={{ height: 'calc(100vh - 130px)', padding: '10px' }}>
-        {console.log('User role passed to MenuList:', mockUser.role)}
-        <MenuList userRole={mockUser.role} />
+        {console.log('User role passed to MenuList:', role)}
+        <MenuList userRole={role} />
         {console.log('MenuList rendered')}
       </PerfectScrollbar>
     </>
@@ -114,4 +113,3 @@ Sidebar.propTypes = {
 };
 
 export default Sidebar;
-

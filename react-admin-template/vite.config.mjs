@@ -12,7 +12,14 @@ export default defineConfig(({ mode }) => {
     server: {
       // this ensures that the browser opens upon server start
       open: true,
-      port: PORT
+      port: PORT,
+      proxy: {
+        '/toko-kyu-ryu/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false
+        }
+      }
     },
     define: {
       global: 'window'

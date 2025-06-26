@@ -10,6 +10,7 @@ import { drawerWidth } from 'config.js';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import ErrorBoundary from 'component/ErrorBoundary';
+import { UserProvider } from 'context/UserContext';
 
 // custom style
 const Main = styled((props) => <main {...props} />)(({ theme }) => ({
@@ -49,36 +50,38 @@ const MainLayout = () => {
   }, [matchUpLg]);
 
   return (
-    <Box sx={{ display: 'flex', width: '100%' }}>
-      <AppBar position="fixed" sx={{ zIndex: 1200 }}>
-        <Toolbar>
-          <Header drawerOpen={drawerOpen} drawerToggle={handleDrawerToggle} />
-        </Toolbar>
-      </AppBar>
-      <Sidebar drawerOpen={drawerOpen} drawerToggle={handleDrawerToggle} />
-      <Main
-        style={{
-          ...(drawerOpen && {
-            transition: theme.transitions.create('margin', {
-              easing: theme.transitions.easing.easeOut,
-              duration: theme.transitions.duration.enteringScreen
-            }),
-            marginLeft: 0,
-            marginRight: 'inherit'
-          })
-        }}
-      >
-        <Box sx={theme.mixins.toolbar} />
-        <OutletDiv>
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
-          <Box sx={{ mt: 5 }}>
-            Created & Modified by <a href="https://www.instagram.com/bin_mori" target="_blank" rel="noopener noreferrer">bin_mori</a>
-          </Box>
-        </OutletDiv>
-      </Main>
-    </Box>
+    <UserProvider>
+      <Box sx={{ display: 'flex', width: '100%' }}>
+        <AppBar position="fixed" sx={{ zIndex: 1200 }}>
+          <Toolbar>
+            <Header drawerOpen={drawerOpen} drawerToggle={handleDrawerToggle} />
+          </Toolbar>
+        </AppBar>
+        <Sidebar drawerOpen={drawerOpen} drawerToggle={handleDrawerToggle} />
+        <Main
+          style={{
+            ...(drawerOpen && {
+              transition: theme.transitions.create('margin', {
+                easing: theme.transitions.easing.easeOut,
+                duration: theme.transitions.duration.enteringScreen
+              }),
+              marginLeft: 0,
+              marginRight: 'inherit'
+            })
+          }}
+        >
+          <Box sx={theme.mixins.toolbar} />
+          <OutletDiv>
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+            <Box sx={{ mt: 5 }}>
+              Created & Modified by <a href="https://www.instagram.com/bin_mori" target="_blank" rel="noopener noreferrer">bin_mori</a>
+            </Box>
+          </OutletDiv>
+        </Main>
+      </Box>
+    </UserProvider>
   );
 };
 

@@ -37,16 +37,16 @@ const CartListCard = ({
               </TableRow>
             </TableHead>
             <TableBody>
-              {cartItems.map((item) => (
-                <TableRow key={item.id}>
+              {cartItems.map((item, index) => (
+                <TableRow key={item.id || index}>
                   <TableCell>{item.name}</TableCell>
                   <TableCell>
                     <Button onClick={() => onQuantityChange(item.id, -1)}>-</Button>
                     {item.quantity}
                     <Button onClick={() => onQuantityChange(item.id, 1)}>+</Button>
                   </TableCell>
-                  <TableCell>Rp {item.price.toLocaleString()}</TableCell>
-                  <TableCell>Rp {(item.price * item.quantity).toLocaleString()}</TableCell>
+                  <TableCell>Rp {item.price ? item.price.toLocaleString() : ''}</TableCell>
+                  <TableCell>Rp {(item.price && item.quantity) ? (item.price * item.quantity).toLocaleString() : ''}</TableCell>
                   <TableCell>
                     <IconButton color="error" onClick={() => onRemoveItem(item.id)}>
                       <DeleteIcon />

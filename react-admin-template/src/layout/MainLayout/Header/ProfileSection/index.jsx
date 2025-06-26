@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
@@ -12,10 +13,17 @@ import SettingsTwoToneIcon from '@mui/icons-material/SettingsTwoTone';
 import AccountCircleTwoToneIcon from '@mui/icons-material/AccountCircleTwoTone';
 import MeetingRoomTwoToneIcon from '@mui/icons-material/MeetingRoomTwoTone';
 
+// project import
+import { UserContext } from 'context/UserContext';
+
 // ==============================|| PROFILE SECTION ||============================== //
+
+const basePath = import.meta.env.VITE_APP_BASE_NAME || '';
 
 const ProfileSection = () => {
   const theme = useTheme();
+  const { setUser } = useContext(UserContext);
+  const navigate = useNavigate();
 
   const [selectedIndex, setSelectedIndex] = React.useState(1);
   const [open, setOpen] = React.useState(false);
@@ -23,6 +31,15 @@ const ProfileSection = () => {
 
   const handleListItemClick = (event, index) => {
     setSelectedIndex(index);
+  };
+
+  const handleLogout = (event) => {
+    event.preventDefault();
+    setUser(null);
+    localStorage.removeItem('user');
+    localStorage.setItem('isAuthenticated', 'false');
+    // Fix navigation to avoid duplicated base path
+    navigate(`/application/login`);
   };
 
   const handleToggle = () => {
@@ -95,19 +112,7 @@ const ProfileSection = () => {
                     borderRadius: '10px'
                   }}
                 >
-                  <ListItemButton selected={selectedIndex === 1} onClick={(event) => handleListItemClick(event, 1)}>
-                    <ListItemIcon>
-                      <PersonTwoToneIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="Profile" />
-                  </ListItemButton>
-                  <ListItemButton selected={selectedIndex === 2} onClick={(event) => handleListItemClick(event, 2)}>
-                    <ListItemIcon>
-                      <DraftsTwoToneIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="My Messages" />
-                  </ListItemButton>
-                  <ListItemButton selected={selectedIndex === 4}>
+                  <ListItemButton selected={selectedIndex === 0} onClick={handleLogout}>
                     <ListItemIcon>
                       <MeetingRoomTwoToneIcon />
                     </ListItemIcon>
@@ -124,3 +129,4 @@ const ProfileSection = () => {
 };
 
 export default ProfileSection;
+

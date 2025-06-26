@@ -4,8 +4,8 @@ import { Grid, Card, CardContent, Typography, Button, CardMedia } from '@mui/mat
 const ProductMenuGrid = ({ products, onAddProduct }) => {
   return (
     <Grid container spacing={2}>
-      {products.map((product) => (
-        <Grid item xs={4} key={product.id}>
+      {products.map((product, index) => (
+        <Grid item xs={4} key={product.id ?? index}>
           <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 1 }}>
             {product.image && (
               <CardMedia component="img" height="140" image={product.image} alt={product.name} />
@@ -13,7 +13,7 @@ const ProductMenuGrid = ({ products, onAddProduct }) => {
             <CardContent sx={{ flexGrow: 1, p: 1 }}>
               <Typography variant="subtitle1">{product.name}</Typography>
               <Typography variant="body2" color="text.secondary">
-                Rp {product.price.toLocaleString()}
+                Rp {product.price ? product.price.toLocaleString() : ''}
               </Typography>
               <Typography
                 variant="body2"

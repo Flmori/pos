@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
@@ -12,6 +12,9 @@ import { useSelector, useDispatch } from 'react-redux';
 // project import
 import * as actionTypes from 'store/actions';
 
+// context
+import { UserContext } from 'context/UserContext';
+
 // assets
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
@@ -21,6 +24,8 @@ const NavItem = ({ item, level }) => {
   const theme = useTheme();
   const customization = useSelector((state) => state.customization);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { setUser } = useContext(UserContext);
   const Icon = item.icon;
   const itemIcon = item.icon ? <Icon color="inherit" /> : <ArrowForwardIcon color="inherit" fontSize={level > 0 ? 'inherit' : 'default'} />;
 
@@ -28,10 +33,30 @@ const NavItem = ({ item, level }) => {
   if (item.target) {
     itemTarget = '_blank';
   }
-  let listItemProps = { component: Link, to: item.url };
-  if (item.external) {
+  let listItemProps = {};
+  if (item.id === 'logout') {
+    // For logout, do not use Link component to prevent navigation
+    listItemProps = {};
+  } else if (item.external) {
     listItemProps = { component: 'a', href: item.url };
+  } else {
+    listItemProps = { component: Link, to: item.url };
   }
+
+  const handleLogout = (event) => {
+    event.preventDefault();
+    setUser(null);
+    localStorage.removeItem('user');
+    localStorage.setItem('isAuthenticated', 'false');
+    navigate('/application/login');
+  };
+
+  const handleClick = (event) => {
+    dispatch({ type: actionTypes.MENU_OPEN, isOpen: item.id });
+    if (item.id === 'logout') {
+      handleLogout(event);
+    }
+  };
 
   return (
     <ListItemButton
@@ -43,9 +68,7 @@ const NavItem = ({ item, level }) => {
         pl: `${level * 16}px`
       }}
       selected={customization.isOpen === item.id}
-      component={Link}
-      onClick={() => dispatch({ type: actionTypes.MENU_OPEN, isOpen: item.id })}
-      to={item.url}
+      onClick={handleClick}
       target={itemTarget}
       {...listItemProps}
     >

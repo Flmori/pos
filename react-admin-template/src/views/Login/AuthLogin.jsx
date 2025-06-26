@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
+import { UserContext } from 'context/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 
@@ -29,11 +30,12 @@ import logo from 'assets/images/logo_meko_no_mori.png';
 
 // ==============================|| CUSTOM LOGIN ||============================== //
 
-const basePath = import.meta.env.VITE_APP_BASE_NAME || '';
+const basePath = 'http://localhost:8000/toko-kyu-ryu';
 
 const AuthLogin = ({ ...rest }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { setUser } = useContext(UserContext);
   const [showPassword, setShowPassword] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
   const maxAttempts = 3;
@@ -48,25 +50,39 @@ const AuthLogin = ({ ...rest }) => {
 
   const [loginError, setLoginError] = useState('');
 
-  const handleSubmit = (values, { setSubmitting, setErrors }) => {
-    // Simulate login validation
+  const handleSubmit = async (values, { setSubmitting, setErrors }) => {
     const { idPengguna, password } = values;
-    // For demo, accept idPengguna: "admin" and password: "admin123"
-    if (idPengguna === 'admin' && password === 'admin123') {
-      setLoginError('');
-      setLoginAttempts(0);
-      // Proceed with login success (e.g., redirect)
-      localStorage.setItem('isAuthenticated', 'true');
-      navigate(`/`);
-    } else {
-      const attemptsLeft = maxAttempts - (loginAttempts + 1);
-      if (attemptsLeft > 0) {
-        setLoginError(`ID Pengguna atau Password salah. Anda memiliki ${attemptsLeft} percobaan tersisa.`);
-        setLoginAttempts(loginAttempts + 1);
-      } else {
-        setLoginError('Anda telah mencapai batas percobaan login. Silakan coba lagi nanti.');
+    try {
+      const response = await fetch(`${basePath}/api/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username: idPengguna, password }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setLoginError('');
         setLoginAttempts(0);
+        // Store user info or token as needed
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('user', JSON.stringify(data.user));
+        setUser(data.user);
+        navigate(`/`);
+      } else {
+        const attemptsLeft = maxAttempts - (loginAttempts + 1);
+        if (attemptsLeft > 0) {
+          setLoginError(data.error || 'ID Pengguna atau Password salah.');
+          setLoginAttempts(loginAttempts + 1);
+        } else {
+          setLoginError('Anda telah mencapai batas percobaan login. Silakan coba lagi nanti.');
+          setLoginAttempts(0);
+        }
+        setErrors({ submit: loginError });
       }
+    } catch (error) {
+      setLoginError('Terjadi kesalahan saat login. Silakan coba lagi.');
       setErrors({ submit: loginError });
     }
     setSubmitting(false);

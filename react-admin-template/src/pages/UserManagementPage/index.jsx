@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 // material-ui
@@ -40,14 +40,22 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 const roles = ['Owner', 'Kasir', 'Pegawai Gudang'];
 
-const initialUsers = [
-  { id: 1, username: 'owner1', fullName: 'Owner One', role: 'Owner', email: 'owner1@example.com' },
-  { id: 2, username: 'kasir1', fullName: 'Kasir One', role: 'Kasir', email: 'kasir1@example.com' },
-  { id: 3, username: 'gudang1', fullName: 'Gudang One', role: 'Pegawai Gudang', email: 'gudang1@example.com' }
-];
+// Map role name to id_role used in backend
+const roleNameToId = {
+  Owner: 'RLS-001',
+  Kasir: 'RLS-002',
+  'Pegawai Gudang': 'RLS-003'
+};
+
+// Reverse map id_role to role name
+const idRoleToName = {
+  'RLS-001': 'Owner',
+  'RLS-002': 'Kasir',
+  'RLS-003': 'Pegawai Gudang'
+};
 
 const UserManagementPage = () => {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -59,6 +67,30 @@ const UserManagementPage = () => {
     role: '',
     email: ''
   });
+
+  // Fetch users from backend on mount
+  useEffect(() => {
+    fetch('/toko-kyu-ryu/api/users')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch users');
+        return res.json();
+      })
+      .then((data) => {
+        // Map backend user data to frontend format
+        const mappedUsers = data.map((user) => ({
+          id: user.id_user,
+          username: user.username,
+          fullName: user.nama_lengkap,
+          role: user.Role ? user.Role.nama_role : (idRoleToName[user.id_role] || ''),
+          email: user.email
+        }));
+        setUsers(mappedUsers);
+      })
+      .catch((error) => {
+        console.error(error);
+        alert('Error fetching users from server');
+      });
+  }, []);
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
@@ -121,32 +153,104 @@ const UserManagementPage = () => {
       return;
     }
 
-    if (editingUser) {
-      // Update user
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === editingUser.id
-            ? { ...user, ...formData, password: undefined, confirmPassword: undefined }
-            : user
-        )
-      );
-    } else {
-      // Add new user
-      const newUser = {
-        id: users.length ? Math.max(...users.map((u) => u.id)) + 1 : 1,
-        fullName: formData.fullName,
-        username: formData.username,
-        role: formData.role,
-        email: formData.email
-      };
-      setUsers((prev) => [...prev, newUser]);
+    // Prepare data for API
+    const userPayload = {
+      nama_lengkap: formData.fullName,
+      username: formData.username,
+      id_role: roleNameToId[formData.role] || null,
+      email: formData.email
+    };
+    if (!editingUser) {
+      // Adding new user, always include password
+      userPayload.password = formData.password;
+    } else if (formData.password) {
+      // Editing user, include password only if provided
+      userPayload.password = formData.password;
     }
-    setOpenDialog(false);
+
+    if (editingUser && editingUser.id) {
+    // Update user via PUT
+    fetch(`/toko-kyu-ryu/api/users/${editingUser.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(userPayload)
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to update user');
+        return res.json();
+      })
+      .then((updatedUser) => {
+        // Reload page after successful update to refresh data and role names
+        window.location.reload();
+        setOpenDialog(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        alert('Error updating user');
+      });
+  } else {
+    // Add new user via POST
+    fetch('/toko-kyu-ryu/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(userPayload)
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to add user');
+        return res.json();
+      })
+      .then((newUser) => {
+        // Delay before refetching users to allow backend to update associations
+        setTimeout(() => {
+          fetch('/toko-kyu-ryu/api/users')
+            .then((res) => {
+              if (!res.ok) throw new Error('Failed to fetch users');
+              return res.json();
+            })
+            .then((data) => {
+              const mappedUsers = data.map((user) => ({
+                id: user.id_user,
+                username: user.username,
+                fullName: user.nama_lengkap,
+                role: user.Role ? user.Role.nama_role : '',
+                email: user.email
+              }));
+              setUsers(mappedUsers);
+              setOpenDialog(false);
+            })
+            .catch((error) => {
+              console.error(error);
+              alert('Error fetching users after adding new user');
+            });
+        }, 500);
+      })
+      .catch((error) => {
+        console.error(error);
+        alert('Error adding user');
+      });
+  }
   };
 
   const handleDeleteUser = (id) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers((prev) => prev.filter((user) => user.id !== id));
+      fetch(`/toko-kyu-ryu/api/users/${id}`, {
+        method: 'DELETE'
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error('Failed to delete user');
+          return res.json();
+        })
+        .then(() => {
+          setUsers((prev) => prev.filter((user) => user.id !== id));
+        })
+        .catch((error) => {
+          console.error(error);
+          alert('Error deleting user');
+        });
     }
   };
 
@@ -196,8 +300,8 @@ const UserManagementPage = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
+                  {filteredUsers.map((user) => (
+                      <TableRow key={user.id ? user.id.toString() : Math.random().toString()}>
                         <TableCell>{user.id}</TableCell>
                         <TableCell>{user.username}</TableCell>
                         <TableCell>{user.fullName}</TableCell>
