@@ -191,7 +191,7 @@ const SalesTransactionPage = () => {
         paymentType,
         amountPaid: paymentType === 'Tunai' ? parseFloat(amountPaid) : totalPayable,
         cartItems: cartItems.map(item => ({
-          id_barang: item.id,
+          id_barang: item.id, // Use string ID as in database
           jumlah_barang: item.quantity,
           harga_per_unit: item.price,
           subtotal_item: item.price * item.quantity,

@@ -1,5 +1,7 @@
 
 import express from 'express';
+import moment from 'moment';
+import { Op } from 'sequelize';
 import Sale from '../models/Sale.js';
 import Product from '../models/Product.js';
 import Customer from '../models/Customer.js';
@@ -12,7 +14,8 @@ router.get('/', async (req, res) => {
     const sales = await Sale.findAll();
     res.json(sales);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Transaction save error:', error.stack || error.message || error);
+    res.status(500).json({ error: error.stack || error.message || error });
   }
 });
 
@@ -90,36 +93,81 @@ router.delete('/:id_penjualan/:id_barang', async (req, res) => {
 router.post('/transaction', async (req, res) => {
   try {
     const { customerId, paymentType, amountPaid, cartItems, discountAmount, totalPrice, totalPayable, cashierId } = req.body;
+    console.log('Request body:', req.body);
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
       return res.status(400).json({ error: 'Cart items are required' });
     }
 
+    console.log('First cart item:', cartItems[0]);
+
+    const requiredFields = ['id_barang', 'jumlah_barang', 'harga_per_unit', 'subtotal_item'];
+    for (const field of requiredFields) {
+      if (cartItems[0][field] === undefined || cartItems[0][field] === null) {
+        return res.status(400).json({ error: `Missing required field '${field}' in first cart item` });
+      }
+    }
+
     // Generate id_penjualan and no_nota once for the transaction
-    // We can create a dummy Sale instance to trigger beforeCreate hook to get id_penjualan and no_nota
-    const dummySale = await Sale.create({
-      id_barang: cartItems[0].id_barang,
-      jumlah_barang: cartItems[0].jumlah_barang,
-      harga_per_unit: cartItems[0].harga_per_unit,
-      subtotal_item: cartItems[0].subtotal_item,
+    // Generate id_penjualan
+    const prefix = 'SLTS-';
+    const lastSale = await Sale.findOne({
+      where: {
+        id_penjualan: {
+          [Op.like]: `${prefix}%`
+        }
+      },
+      order: [['id_penjualan', 'DESC']],
+    });
+    let newIdPenjualan;
+    if (lastSale) {
+      const lastIdNum = parseInt(lastSale.id_penjualan.replace(prefix, ''), 10);
+      const newIdNum = lastIdNum + 1;
+      newIdPenjualan = prefix + newIdNum.toString().padStart(3, '0');
+    } else {
+      newIdPenjualan = prefix + '001';
+    }
+
+    // Generate no_nota as yyyymmdd + 4 digit sequence reset daily
+    const datePrefix = moment().format('YYYYMMDD');
+    const likePattern = `${datePrefix}%`;
+
+    const lastNoNota = await Sale.findOne({
+      where: {
+        no_nota: {
+          [Op.like]: likePattern
+        }
+      },
+      order: [['no_nota', 'DESC']],
     });
 
-    const id_penjualan = dummySale.id_penjualan;
-    const no_nota = dummySale.no_nota;
-
-    // Delete the dummy sale record
-    await dummySale.destroy();
+    let newNoNota;
+    if (lastNoNota && lastNoNota.no_nota) {
+      const lastSeq = parseInt(lastNoNota.no_nota.toString().slice(8), 10);
+      newNoNota = parseInt(datePrefix + (lastSeq + 1).toString().padStart(4, '0'), 10);
+    } else {
+      newNoNota = parseInt(datePrefix + '0001', 10);
+    }
 
     // Create sale records for each cart item with the same id_penjualan and no_nota
     const salesToCreate = cartItems.map(item => ({
-      id_penjualan,
-      no_nota,
+      id_penjualan: newIdPenjualan,
+      no_nota: newNoNota,
       id_barang: item.id_barang,
       jumlah_barang: item.jumlah_barang,
       harga_per_unit: item.harga_per_unit,
       subtotal_item: item.subtotal_item,
     }));
 
-    const createdSales = await Sale.bulkCreate(salesToCreate);
+    let createdSales;
+    try {
+      createdSales = await Sale.bulkCreate(salesToCreate);
+    } catch (bulkError) {
+      console.error('Bulk create error:', bulkError);
+      if (bulkError.name === 'SequelizeValidationError') {
+        console.error('Validation errors:', bulkError.errors);
+      }
+      throw bulkError;
+    }
 
     // Update stock for each product
     for (const item of cartItems) {
@@ -141,9 +189,13 @@ router.post('/transaction', async (req, res) => {
       }
     }
 
-    res.status(201).json({ id_penjualan, no_nota, sales: createdSales });
+    res.status(201).json({ id_penjualan: newIdPenjualan, no_nota: newNoNota, sales: createdSales });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Transaction save error:', error.stack || error.message || error);
+    if (error.name === 'SequelizeValidationError') {
+      console.error('Validation errors:', error.errors);
+    }
+    res.status(500).json({ error: error.stack || error.message || error });
   }
 });
 export default router;

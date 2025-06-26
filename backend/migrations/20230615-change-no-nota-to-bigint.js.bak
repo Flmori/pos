@@ -1,0 +1,19 @@
+'use strict';
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    // Change no_nota column type to BIGINT
+    await queryInterface.changeColumn('sales', 'no_nota', {
+      type: Sequelize.BIGINT,
+      allowNull: true,
+    });
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    // Revert no_nota column type back to INTEGER
+    await queryInterface.changeColumn('sales', 'no_nota', {
+      type: Sequelize.INTEGER,
+      allowNull: true,
+    });
+  }
+};

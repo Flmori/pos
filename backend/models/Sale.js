@@ -8,11 +8,11 @@ const Sale = sequelize.define('Sale', {
     primaryKey: true,
   },
   no_nota: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.BIGINT,
     allowNull: true,
   },
   id_barang: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING(10),
     primaryKey: true,
     references: {
       model: Product,
