@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { Typography, Grid, Dialog, DialogTitle, DialogContent, DialogActions, Button, Box } from '@mui/material';
 import axios from 'axios';
@@ -20,11 +20,13 @@ import SalesDocumentCard from './SalesDocumentCard';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { addPdfHeader } from 'layout/PdfHeader/PdfHeader.jsx';
+import { UserContext } from 'context/UserContext.jsx';
 
 const categoriesForMenu = ['Semua', 'Kopi Klasik', 'Kopi Signature', 'Manual Brew', 'Non-Kopi', 'Pastry & Roti', 'Kudapan Berat', 'Dessert'];
 
 const SalesTransactionPage = () => {
   const [productInput, setProductInput] = useState('');
+  const { user } = useContext(UserContext);
   const [productsData, setProductsData] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cartItems, setCartItems] = useState([]);
@@ -352,7 +354,7 @@ const SalesTransactionPage = () => {
               totalPayable={totalPayable}
               amountPaid={amountPaid}
               change={change}
-              cashierName="Nama Kasir"
+              cashierName={user?.nama_lengkap || "Nama Kasir"}
             />
           </div>
         </DialogContent>

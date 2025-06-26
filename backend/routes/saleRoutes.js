@@ -2,6 +2,7 @@
 import express from 'express';
 import moment from 'moment';
 import { Op } from 'sequelize';
+import { v4 as uuidv4 } from 'uuid';
 import Sale from '../models/Sale.js';
 import Product from '../models/Product.js';
 import Customer from '../models/Customer.js';
@@ -108,7 +109,7 @@ router.post('/transaction', async (req, res) => {
     }
 
     // Generate id_penjualan and no_nota once for the transaction
-    // Generate id_penjualan
+    // Generate id_penjualan as prefix + incremented number to fit database length
     const prefix = 'SLTS-';
     const lastSale = await Sale.findOne({
       where: {
