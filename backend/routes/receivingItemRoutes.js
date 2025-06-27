@@ -32,11 +32,11 @@ router.get('/:id_penerimaan/:id_barang', async (req, res) => {
 // Create new receiving item
 router.post('/', async (req, res) => {
   try {
-    const { id_penerimaan, id_barang, jumlah_diterima, harga_beli, kondisi_barang } = req.body;
-    if (!id_penerimaan || !id_barang || !jumlah_diterima || !harga_beli || !kondisi_barang) {
+    const { id_penerimaan, id_barang, jumlah_diterima, kondisi_barang } = req.body;
+    if (!id_penerimaan || !id_barang || !jumlah_diterima || !kondisi_barang) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    const item = await ReceivingItem.create({ id_penerimaan, id_barang, jumlah_diterima, harga_beli, kondisi_barang });
+    const item = await ReceivingItem.create({ id_penerimaan, id_barang, jumlah_diterima, kondisi_barang });
     res.status(201).json(item);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -54,9 +54,8 @@ router.put('/:id_penerimaan/:id_barang', async (req, res) => {
     });
     if (!item) return res.status(404).json({ error: 'Receiving item not found' });
 
-    const { jumlah_diterima, harga_beli, kondisi_barang } = req.body;
+    const { jumlah_diterima, kondisi_barang } = req.body;
     if (jumlah_diterima !== undefined) item.jumlah_diterima = jumlah_diterima;
-    if (harga_beli !== undefined) item.harga_beli = harga_beli;
     if (kondisi_barang) item.kondisi_barang = kondisi_barang;
 
     await item.save();

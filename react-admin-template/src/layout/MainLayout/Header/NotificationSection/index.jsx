@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
 import {
   Button,
+  Badge,
   Chip,
   ClickAwayListener,
   Fade,
@@ -26,18 +27,45 @@ import PerfectScrollbar from 'react-perfect-scrollbar';
 // assets
 import QueryBuilderTwoToneIcon from '@mui/icons-material/QueryBuilderTwoTone';
 import NotificationsNoneTwoToneIcon from '@mui/icons-material/NotificationsNoneTwoTone';
-
-import User1 from 'assets/images/users/avatar-1.jpg';
-import User2 from 'assets/images/users/avatar-2.jpg';
-import User3 from 'assets/images/users/avatar-3.jpg';
-import User4 from 'assets/images/users/avatar-4.jpg';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 // ==============================|| NOTIFICATION ||============================== //
 
 const NotificationSection = () => {
   const theme = useTheme();
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
   const anchorRef = React.useRef(null);
+
+  const [lowStockItems, setLowStockItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchLowStockItems = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch('/toko-kyu-ryu/api/products/stock-report');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        const filteredItems = data.filter(item => item.stok < 20);
+        const items = filteredItems.map(item => ({
+          id: item.id_barang,
+          name: item.nama_barang,
+          stock: item.stok
+        }));
+        setLowStockItems(items);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLowStockItems();
+  }, []);
 
   const handleToggle = () => {
     setOpen((prevOpen) => !prevOpen);
@@ -71,7 +99,9 @@ const NotificationSection = () => {
         onClick={handleToggle}
         color="inherit"
       >
-        <NotificationsNoneTwoToneIcon sx={{ fontSize: '1.5rem' }} />
+        <Badge color="error" variant="dot" invisible={lowStockItems.length === 0}>
+          <NotificationsNoneTwoToneIcon sx={{ fontSize: '1.5rem' }} />
+        </Badge>
       </Button>
       <Popper
         placement="bottom-end"
@@ -113,117 +143,45 @@ const NotificationSection = () => {
                     <ListSubheader disableSticky>
                       <Chip size="small" color="primary" label="New" />
                     </ListSubheader>
-                    <ListItemButton alignItems="flex-start" sx={{ pt: 0 }}>
-                      <ListItemAvatar>
-                        <Avatar alt="John Doe" src={User1} />
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={<Typography variant="subtitle1">John Doe</Typography>}
-                        secondary={<Typography variant="subtitle2">New ticket Added</Typography>}
-                      />
-                      <ListItemSecondaryAction sx={{ top: 22 }}>
-                        <Grid container justifyContent="flex-end">
-                          <Grid item>
-                            <QueryBuilderTwoToneIcon
-                              sx={{
-                                fontSize: '0.75rem',
-                                mr: 0.5,
-                                color: theme.palette.grey[400]
-                              }}
-                            />
-                          </Grid>
-                          <Grid item>
-                            <Typography variant="caption" display="block" gutterBottom sx={{ color: theme.palette.grey[400] }}>
-                              now
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </ListItemSecondaryAction>
-                    </ListItemButton>
-                    <ListSubheader disableSticky>
-                      <Chip size="small" variant="outlined" label="EARLIER" />
-                    </ListSubheader>
-                    <ListItemButton alignItems="flex-start" sx={{ pt: 0 }}>
-                      <ListItemAvatar>
-                        <Avatar alt="Joseph William" src={User2} />
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={<Typography variant="subtitle1">Joseph William</Typography>}
-                        secondary={<Typography variant="subtitle2">Purchase a new product</Typography>}
-                      />
-                      <ListItemSecondaryAction sx={{ top: 20 }}>
-                        <Grid container justifyContent="flex-end">
-                          <Grid item>
-                            <QueryBuilderTwoToneIcon
-                              sx={{
-                                fontSize: '0.75rem',
-                                mr: 0.5,
-                                color: theme.palette.grey[400]
-                              }}
-                            />
-                          </Grid>
-                          <Grid item>
-                            <Typography variant="caption" display="block" gutterBottom sx={{ color: theme.palette.grey[400] }}>
-                              10 min
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </ListItemSecondaryAction>
-                    </ListItemButton>
-                    <ListItemButton alignItems="flex-start">
-                      <ListItemAvatar>
-                        <Avatar alt="Sara Soudein" src={User3} />
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={<Typography variant="subtitle1">Sara Soudein</Typography>}
-                        secondary={<Typography variant="subtitle2">Currently Login</Typography>}
-                      />
-                      <ListItemSecondaryAction sx={{ top: 30 }}>
-                        <Grid container justifyContent="flex-end">
-                          <Grid item>
-                            <QueryBuilderTwoToneIcon
-                              sx={{
-                                fontSize: '0.75rem',
-                                mr: 0.5,
-                                color: theme.palette.grey[400]
-                              }}
-                            />
-                          </Grid>
-                          <Grid item>
-                            <Typography variant="caption" display="block" gutterBottom sx={{ color: theme.palette.grey[400] }}>
-                              12 min
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </ListItemSecondaryAction>
-                    </ListItemButton>
-                    <ListItemButton alignItems="flex-start">
-                      <ListItemAvatar>
-                        <Avatar alt="Sepha Wilon" src={User4} />
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={<Typography variant="subtitle1">Sepha Wilon</Typography>}
-                        secondary={<Typography variant="subtitle2">Purchase a new product</Typography>}
-                      />
-                      <ListItemSecondaryAction sx={{ top: 30 }}>
-                        <Grid container justifyContent="flex-end">
-                          <Grid item>
-                            <QueryBuilderTwoToneIcon
-                              sx={{
-                                fontSize: '0.75rem',
-                                mr: 0.5,
-                                color: theme.palette.grey[400]
-                              }}
-                            />
-                          </Grid>
-                          <Grid item>
-                            <Typography variant="caption" display="block" gutterBottom sx={{ color: theme.palette.grey[400] }}>
-                              30 min
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </ListItemSecondaryAction>
-                    </ListItemButton>
+                    {loading ? (
+                      <Typography sx={{ p: 2 }}>Loading notifications...</Typography>
+                    ) : error ? (
+                      <Typography color="error" sx={{ p: 2 }}>
+                        Error: {error}
+                      </Typography>
+                    ) : lowStockItems.length === 0 ? (
+                      <Typography sx={{ p: 2 }}>Tidak ada produk dengan stok minimum.</Typography>
+                    ) : (
+                      lowStockItems.map((item) => (
+                        <ListItemButton key={item.id} alignItems="flex-start" sx={{ pt: 0 }}>
+                          <ListItemAvatar>
+                            <WarningAmberIcon color="error" />
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={<Typography variant="subtitle1">{item.name}</Typography>}
+                            secondary={<Typography variant="subtitle2">{`Stok tersisa: ${item.stock}`}</Typography>}
+                          />
+                          <ListItemSecondaryAction sx={{ top: 22 }}>
+                            <Grid container justifyContent="flex-end">
+                              <Grid item>
+                                <QueryBuilderTwoToneIcon
+                                  sx={{
+                                    fontSize: '0.75rem',
+                                    mr: 0.5,
+                                    color: theme.palette.grey[400]
+                                  }}
+                                />
+                              </Grid>
+                              <Grid item>
+                                <Typography variant="caption" display="block" gutterBottom sx={{ color: theme.palette.grey[400] }}>
+                                  now
+                                </Typography>
+                              </Grid>
+                            </Grid>
+                          </ListItemSecondaryAction>
+                        </ListItemButton>
+                      ))
+                    )}
                   </PerfectScrollbar>
                 </List>
               </ClickAwayListener>

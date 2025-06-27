@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Sale from '../models/Sale.js';
 import Product from '../models/Product.js';
 import Customer from '../models/Customer.js';
+import { Sequelize } from 'sequelize';
 
 const router = express.Router();
 
@@ -17,6 +18,51 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Transaction save error:', error.stack || error.message || error);
     res.status(500).json({ error: error.stack || error.message || error });
+  }
+});
+
+router.get('/sales-report', async (req, res) => {
+  try {
+    // Get all sales with related Product and include necessary fields
+    const sales = await Sale.findAll({
+      attributes: [
+        'id_penjualan',
+        'no_nota',
+        'id_barang',
+        'jumlah_barang',
+        'harga_per_unit',
+        ['subtotal_item', 'total_bayar'],
+        ['created_at', 'tanggal_transaksi'],
+      ],
+    include: [
+      {
+        model: Product,
+        attributes: ['nama_barang'],
+      },
+    ],
+      order: [['created_at', 'DESC']],
+    });
+
+    // Map sales to plain objects and include product info
+    const salesData = sales.map(sale => {
+      const saleJson = sale.toJSON();
+      return {
+        id_penjualan: saleJson.id_penjualan,
+        no_nota: saleJson.no_nota,
+        id_barang: saleJson.id_barang,
+        jumlah_barang: saleJson.jumlah_barang,
+        harga_per_unit: saleJson.harga_per_unit,
+        total_bayar: saleJson.total_bayar,
+        tanggal_transaksi: saleJson.tanggal_transaksi,
+        nama_barang: saleJson.Product?.nama_barang || null,
+        kategori: saleJson.Product?.kategori || null,
+      };
+    });
+
+    res.json(salesData);
+  } catch (error) {
+    console.error('Sales Report Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -90,16 +136,12 @@ router.delete('/:id_penjualan/:id_barang', async (req, res) => {
   }
 });
 
-// New route to create a full sales transaction with multiple sale items
 router.post('/transaction', async (req, res) => {
   try {
-    const { customerId, paymentType, amountPaid, cartItems, discountAmount, totalPrice, totalPayable, cashierId } = req.body;
-    console.log('Request body:', req.body);
+    const { customerId, paymentType, amountPaid, cartItems, discountAmount, totalPrice, totalPayable, cashierId, useDiscount } = req.body;
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
       return res.status(400).json({ error: 'Cart items are required' });
     }
-
-    console.log('First cart item:', cartItems[0]);
 
     const requiredFields = ['id_barang', 'jumlah_barang', 'harga_per_unit', 'subtotal_item'];
     for (const field of requiredFields) {
@@ -109,7 +151,6 @@ router.post('/transaction', async (req, res) => {
     }
 
     // Generate id_penjualan and no_nota once for the transaction
-    // Generate id_penjualan as prefix + incremented number to fit database length
     const prefix = 'SLTS-';
     const lastSale = await Sale.findOne({
       where: {
@@ -149,6 +190,31 @@ router.post('/transaction', async (req, res) => {
       newNoNota = parseInt(datePrefix + '0001', 10);
     }
 
+    // Calculate total quantity of items for loyalty points
+    const totalQuantity = cartItems.reduce((sum, item) => sum + item.jumlah_barang, 0);
+
+    // Calculate loyalty points earned: 10 points per item
+    const pointsEarned = totalQuantity * 10;
+
+    // Calculate discount percentage based on customer's current loyalty points if useDiscount is true
+    let discountPercent = 0;
+    let currentLoyaltyPoints = 0;
+    if (customerId) {
+      const customer = await Customer.findByPk(customerId);
+      if (customer && customer.is_member) {
+        currentLoyaltyPoints = customer.poin_loyalitas || 0;
+        if (useDiscount) {
+          discountPercent = Math.min(Math.floor(currentLoyaltyPoints / 10) * 1, 20);
+        }
+      }
+    }
+
+    // Calculate discount amount
+    const calculatedDiscountAmount = (totalPrice * discountPercent) / 100;
+
+    // Adjust total payable based on discount
+    const adjustedTotalPayable = totalPrice - calculatedDiscountAmount;
+
     // Create sale records for each cart item with the same id_penjualan and no_nota
     const salesToCreate = cartItems.map(item => ({
       id_penjualan: newIdPenjualan,
@@ -183,14 +249,27 @@ router.post('/transaction', async (req, res) => {
     if (customerId) {
       const customer = await Customer.findByPk(customerId);
       if (customer && customer.is_member) {
-        // For example, add 1 point for every 10000 spent (customize as needed)
-        const pointsToAdd = Math.floor(totalPayable / 10000);
-        customer.poin_loyalitas = (customer.poin_loyalitas || 0) + pointsToAdd;
+        if (useDiscount) {
+          // Deduct loyalty points based on discount used (each 1% discount = 10 points)
+          const pointsToDeduct = Math.min(currentLoyaltyPoints, Math.floor(discountPercent / 1) * 10);
+          customer.poin_loyalitas = currentLoyaltyPoints - pointsToDeduct + pointsEarned;
+        } else {
+          // Just add points earned
+          customer.poin_loyalitas = currentLoyaltyPoints + pointsEarned;
+        }
         await customer.save();
       }
     }
 
-    res.status(201).json({ id_penjualan: newIdPenjualan, no_nota: newNoNota, sales: createdSales });
+    res.status(201).json({
+      id_penjualan: newIdPenjualan,
+      no_nota: newNoNota,
+      sales: createdSales,
+      discountPercent,
+      discountAmount: calculatedDiscountAmount,
+      totalPayable: adjustedTotalPayable,
+      pointsEarned,
+    });
   } catch (error) {
     console.error('Transaction save error:', error.stack || error.message || error);
     if (error.name === 'SequelizeValidationError') {
@@ -199,4 +278,46 @@ router.post('/transaction', async (req, res) => {
     res.status(500).json({ error: error.stack || error.message || error });
   }
 });
+import { fn, col, literal } from 'sequelize';
+
+// New route for daily sales summary
+router.get('/daily-sales-summary', async (req, res) => {
+  try {
+    const startOfDay = moment().startOf('day').toDate();
+    const endOfDay = moment().endOf('day').toDate();
+
+    // Sum subtotal_item as total sales and count distinct id_penjualan as transaction count
+    const totalSalesResult = await Sale.findOne({
+      attributes: [[fn('SUM', col('subtotal_item')), 'totalSales']],
+      where: {
+        created_at: {
+          [Op.between]: [startOfDay, endOfDay]
+        }
+      },
+      raw: true
+    });
+
+    const transactionCountResult = await Sale.count({
+      distinct: true,
+      col: 'id_penjualan',
+      where: {
+        created_at: {
+          [Op.between]: [startOfDay, endOfDay]
+        }
+      }
+    });
+
+    const totalSales = totalSalesResult.totalSales || 0;
+    const transactionCount = transactionCountResult || 0;
+
+    res.json({
+      totalSales,
+      transactionCount
+    });
+  } catch (error) {
+    console.error('Daily Sales Summary Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

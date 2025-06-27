@@ -22,12 +22,39 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { addPdfHeaderReceiving } from 'layout/PdfHeader/PdfHeader.jsx';
 
-const ReceivingTransactionReportCard = ({ receivingData, employees, conditions }) => {
+const ReceivingTransactionReportCard = () => {
+  const [receivingData, setReceivingData] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [conditions, setConditions] = useState([]);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [selectedCondition, setSelectedCondition] = useState('');
-  const [filteredData, setFilteredData] = useState(receivingData);
+  const [filteredData, setFilteredData] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/toko-kyu-ryu/api/receiving-transactions');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setReceivingData(data);
+
+        // Extract unique employees and conditions for filters
+        const uniqueEmployees = Array.from(new Set(data.map(item => item.nama_pegawai_gudang))).filter(Boolean);
+        const uniqueConditions = Array.from(new Set(data.map(item => item.kondisi_barang))).filter(Boolean);
+
+        setEmployees(uniqueEmployees);
+        setConditions(uniqueConditions);
+      } catch (error) {
+        console.error('Failed to fetch receiving transactions:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   useEffect(() => {
     let filtered = receivingData;
@@ -39,7 +66,7 @@ const ReceivingTransactionReportCard = ({ receivingData, employees, conditions }
       filtered = filtered.filter(item => new Date(item.tanggal_penerimaan) <= new Date(toDate));
     }
     if (selectedEmployee) {
-      filtered = filtered.filter(item => item.pegawai_pencatat === selectedEmployee);
+      filtered = filtered.filter(item => item.nama_pegawai_gudang === selectedEmployee);
     }
     if (selectedCondition) {
       filtered = filtered.filter(item => item.kondisi_barang === selectedCondition);
@@ -156,27 +183,98 @@ const ReceivingTransactionReportCard = ({ receivingData, employees, conditions }
   };
 
   const handleExportPDF = () => {
-    const input = document.getElementById('receiving-report-table');
-    if (!input) {
-      alert('Tabel laporan tidak ditemukan untuk ekspor PDF.');
-      return;
-    }
-    html2canvas(input).then(async (canvas) => {
+    const rowsPerPage = 25;
+    const totalRows = filteredData.length;
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+
+    const generatePage = async (pageIndex) => {
+      // Slice the data for the current page
+      const pageData = filteredData.slice(pageIndex * rowsPerPage, (pageIndex + 1) * rowsPerPage);
+
+      // Create a temporary table element for the page data
+      const tempTable = document.createElement('table');
+      tempTable.style.width = '100%';
+      tempTable.style.borderCollapse = 'collapse';
+
+      // Create table header
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Tanggal & Waktu Penerimaan', 'Nomor Dokumen Penerimaan', 'Pegawai Pencatat', 'Nama Produk', 'Jumlah Diterima', 'Kondisi Barang', 'Catatan'].forEach(text => {
+        const th = document.createElement('th');
+        th.style.border = '1px solid black';
+        th.style.padding = '4px';
+        th.style.fontWeight = 'bold';
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      tempTable.appendChild(thead);
+
+      // Create table body
+      const tbody = document.createElement('tbody');
+      pageData.forEach(item => {
+        const row = document.createElement('tr');
+        [item.tanggal_penerimaan, item.nomor_dokumen_penerimaan, item.pegawai_pencatat, item.nama_produk, item.jumlah_diterima, item.kondisi_barang, item.catatan].forEach(text => {
+          const td = document.createElement('td');
+          td.style.border = '1px solid black';
+          td.style.padding = '4px';
+          td.textContent = text ?? '';
+          row.appendChild(td);
+        });
+        tbody.appendChild(row);
+      });
+      tempTable.appendChild(tbody);
+
+      // Append the table to a container div
+      const container = document.createElement('div');
+      container.style.width = '210mm'; // A4 width
+      container.style.position = 'fixed'; // Fix position to avoid layout shift
+      container.style.left = '-9999px'; // Move offscreen
+      container.style.top = '0';
+
+      // Create and append title element
+      const titleElement = document.createElement('div');
+      titleElement.style.textAlign = 'center';
+      titleElement.style.fontWeight = 'bold';
+      titleElement.style.fontSize = '18px';
+      titleElement.style.marginBottom = '12px';
+      titleElement.textContent = 'Laporan Transaksi Penerimaan Barang';
+      container.appendChild(titleElement);
+
+      container.appendChild(tempTable);
+
+      // Append container temporarily to the document body to fix html2canvas error
+      document.body.appendChild(container);
+
+      // Render the container to canvas
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: true, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight });
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      // Remove the container from the document after rendering
+      document.body.removeChild(container);
 
       // Add header
       await addPdfHeaderReceiving(pdf);
 
-      // Add image below header
+      // Add image
       pdf.addImage(imgData, 'PNG', 0, 44, pdfWidth, pdfHeight);
 
+      if (pageIndex < totalPages - 1) {
+        pdf.addPage();
+      }
+    };
+
+    (async () => {
+      for (let i = 0; i < totalPages; i++) {
+        await generatePage(i);
+      }
       pdf.save('Laporan_Transaksi_Penerimaan.pdf');
-    }).catch(error => {
-      alert('Gagal mengekspor ke PDF: ' + error.message);
+    })().catch(error => {
+      alert('Gagal mengekspor ke PDF: ' + (error?.message ?? error));
     });
   };
 
@@ -241,7 +339,7 @@ const ReceivingTransactionReportCard = ({ receivingData, employees, conditions }
         </Grid>
       </Grid>
 
-      <TableContainer id="receiving-report-table">
+      <TableContainer id="receiving-report-table" sx={{ overflowX: 'auto' }}>
         <Box>
           <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
             Laporan Transaksi Penerimaan Barang
@@ -261,8 +359,8 @@ const ReceivingTransactionReportCard = ({ receivingData, employees, conditions }
           </TableHead>
           <TableBody>
             {filteredData.length > 0 ? (
-              filteredData.map(item => (
-                <TableRow key={item.nomor_dokumen_penerimaan}>
+              filteredData.map((item, index) => (
+                <TableRow key={`${item.nomor_dokumen_penerimaan}-${index}`}>
                   <TableCell>{item.tanggal_penerimaan}</TableCell>
                   <TableCell>{item.nomor_dokumen_penerimaan}</TableCell>
                   <TableCell>{item.pegawai_pencatat}</TableCell>

@@ -1,5 +1,6 @@
 import express from 'express';
 import Customer from '../models/Customer.js';
+import { Sequelize } from 'sequelize';
 
 const router = express.Router();
 
@@ -10,6 +11,20 @@ router.get('/', async (req, res) => {
     res.json(customers);
   } catch (error) {
     console.error('[Customer GET /] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/daily-customer-count-report', async (req, res) => {
+  try {
+    // Return all customers with relevant fields for frontend aggregation
+    const customers = await Customer.findAll({
+      attributes: ['id_pelanggan', 'tgl_daftar_member', 'is_member'],
+      order: [['tgl_daftar_member', 'ASC']],
+    });
+    res.json(customers);
+  } catch (error) {
+    console.error('Daily Customer Count Report Error:', error);
     res.status(500).json({ error: error.message });
   }
 });

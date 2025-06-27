@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Typography, Button, Stack } from '@mui/material';
 import Breadcrumb from 'component/Breadcrumb';
@@ -6,23 +6,93 @@ import SalesTransactionReportCard from './SalesTransactionReportCard';
 import ReceivingTransactionReportCard from './ReceivingTransactionReportCard';
 import DailyCustomerCountReportCard from './DailyCustomerCountReportCard';
 import StockReportCard from './StockReportCard';
+import axios from 'axios';
 
 const ReportsPage = () => {
-  // For demonstration, pass empty arrays or mock data as needed
-  const salesData = [];
-  const categories = [];
-  const receivingData = [];
-  const employees = [];
+  const [salesData, setSalesData] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [receivingData, setReceivingData] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const conditions = ['Baik', 'Rusak', 'Cacat'];
-  const customerData = [];
-  const products = [];
-  const stockCategories = [];
+  const [customerData, setCustomerData] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [stockCategories, setStockCategories] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState('Stok');
 
+  useEffect(() => {
+    const fetchStockReport = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/toko-kyu-ryu/api/products/stock-report');
+        const data = response.data;
+        setProducts(data);
+        // Extract unique categories from products
+        const uniqueCategories = Array.from(new Set(data.map(item => item.Category?.nama_kategori).filter(Boolean)));
+        setStockCategories(uniqueCategories);
+      } catch (error) {
+        console.error('Error fetching stock report:', error);
+        setProducts([]);
+        setStockCategories([]);
+      }
+    };
+
+    const fetchSalesReport = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/toko-kyu-ryu/api/sales/sales-report');
+        const data = response.data;
+        setSalesData(data);
+        // Extract unique categories from sales products
+        const uniqueCategories = Array.from(new Set(data.map(item => item.Product?.nama_barang).filter(Boolean)));
+        setCategories(uniqueCategories);
+      } catch (error) {
+        console.error('Error fetching sales report:', error);
+        setSalesData([]);
+        setCategories([]);
+      }
+    };
+
+    const fetchReceivingTransactions = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/toko-kyu-ryu/api/receiving-transactions');
+        const data = response.data;
+
+        setReceivingData(data);
+
+        // Extract unique employees from data
+        const uniqueEmployees = Array.from(new Set(data.map(item => item.pegawai_pencatat).filter(Boolean)));
+        setEmployees(uniqueEmployees);
+      } catch (error) {
+        console.error('Error fetching receiving transactions:', error);
+        setReceivingData([]);
+        setEmployees([]);
+      }
+    };
+
+    const fetchDailyCustomerCount = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/toko-kyu-ryu/api/customers/daily-customer-count-report');
+        const data = response.data;
+        setCustomerData(data);
+      } catch (error) {
+        console.error('Error fetching daily customer count report:', error);
+        setCustomerData([]);
+      }
+    };
+
+    if (selectedCategory === 'Stok') {
+      fetchStockReport();
+    } else if (selectedCategory === 'Penjualan') {
+      fetchSalesReport();
+    } else if (selectedCategory === 'Penerimaan') {
+      fetchReceivingTransactions();
+    } else if (selectedCategory === 'Pelanggan') {
+      fetchDailyCustomerCount();
+    }
+  }, [selectedCategory]);
+
   return (
     <>
-      <Breadcrumb title="Aplikasi Pelanggan">
+      <Breadcrumb title="Laporan">
         <Typography component={Link} to="/" variant="subtitle2" color="inherit" className="link-breadcrumb">
           Home
         </Typography>

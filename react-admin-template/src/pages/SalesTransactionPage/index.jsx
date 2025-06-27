@@ -141,7 +141,25 @@ const SalesTransactionPage = () => {
 
   // Calculate totals
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const discountAmount = memberInfo ? (totalPrice * memberInfo.discount) / 100 : 0;
+
+  // Calculate total quantity of items for loyalty points
+  const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Calculate loyalty points earned: 10 points per item
+  const pointsEarned = totalQuantity * 10;
+
+  // Discount percent based on customer's current loyalty points (1% per 10 points, max 20%)
+  const maxDiscountPercent = 20;
+  const currentLoyaltyPoints = memberInfo?.poin_loyalitas || 0;
+  const discountPercentFromPoints = Math.min(Math.floor(currentLoyaltyPoints / 10) * 1, maxDiscountPercent);
+
+  // State for use discount toggle
+  const [useDiscount, setUseDiscount] = React.useState(false);
+
+  // Calculate discount amount based on toggle and points
+  const discountAmount = useDiscount ? (totalPrice * discountPercentFromPoints) / 100 : 0;
+
+  // Calculate total payable
   const totalPayable = totalPrice - discountAmount;
 
   // Handle member ID input change
@@ -201,6 +219,7 @@ const SalesTransactionPage = () => {
         discountAmount,
         totalPrice,
         totalPayable,
+        useDiscount,
       });
       setTransactionSaved(true);
       alert('Transaksi berhasil disimpan');
@@ -314,8 +333,12 @@ const SalesTransactionPage = () => {
             totalPrice={totalPrice}
             memberId={memberId}
             memberInfo={memberInfo}
+            memberName={memberInfo ? memberInfo.nama_pelanggan : ''}
             onMemberIdChange={handleMemberIdChange}
             totalPayable={totalPayable}
+            useDiscount={useDiscount}
+            setUseDiscount={setUseDiscount}
+            pointsEarned={pointsEarned}
           />
         </Grid>
         <Grid item xs={12} md={4}>

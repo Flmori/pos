@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 // material-ui
@@ -23,7 +23,7 @@ import logoMeko from 'assets/images/logo_meko_no_mori.png';
 
 // ==============================|| CUSTOMER MENU TABLET PAGE ||============================== //
 
-const categories = [
+const categoriesStatic = [
   'Semua',
   'Kopi Klasik',
   'Kopi Signature',
@@ -34,43 +34,64 @@ const categories = [
   'Dessert'
 ];
 
-const products = [
-  {
-    id: 1,
-    category: 'Kopi Klasik',
-    name: 'Es Kopi Susu Aren',
-    price: 25000,
-    description: 'Kopi susu dingin dengan sentuhan manis gula aren asli Indonesia.',
-    image: null,
-    inStock: true
-  },
-  {
-    id: 2,
-    category: 'Pastry & Roti',
-    name: 'Croissant Butter',
-    price: 15000,
-    description: 'Roti croissant dengan mentega asli.',
-    image: null,
-    inStock: false
-  },
-  {
-    id: 3,
-    category: 'Dessert',
-    name: 'Pudding Coklat',
-    price: 20000,
-    description: 'Puding coklat lembut dan manis.',
-    image: null,
-    inStock: true
-  }
-];
-
 const CustomerMenuTabletPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('Semua');
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState(categoriesStatic);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('http://localhost:3000/toko-kyu-ryu/api/products');
+      if (!response.ok) throw new Error('Failed to fetch products');
+      const data = await response.json();
+
+      // Extract unique categories from products
+      const uniqueCategories = Array.from(
+        new Set(data.map((product) => product.Category?.nama_kategori || 'Lainnya'))
+      );
+      setCategories(['Semua', ...uniqueCategories]);
+
+      // Map products to frontend format
+      const mappedProducts = data.map((product) => ({
+        id: product.id_barang,
+        category: product.Category?.nama_kategori || 'Lainnya',
+        name: product.nama_barang,
+        price: product.harga_jual,
+        description: product.deskripsi,
+        image: null, // Assuming no image from backend
+        inStock: product.stok > 0,
+        stock: product.stok
+      }));
+      setProducts(mappedProducts);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredProducts =
     selectedCategory === 'Semua'
       ? products
       : products.filter((product) => product.category === selectedCategory);
+
+  const getStockStatus = (stock) => {
+    if (stock > 20) {
+      return { text: 'Tersedia', color: 'green' };
+    } else if (stock > 0 && stock <= 20) {
+      return { text: 'Stok akan habis', color: 'orange' };
+    } else {
+      return { text: 'Habis', color: 'red' };
+    }
+  };
 
   return (
     <>
@@ -102,31 +123,41 @@ const CustomerMenuTabletPage = () => {
               ))}
             </Stack>
           </Box>
+          {loading && <Typography>Loading products...</Typography>}
+          {error && <Typography color="error">{error}</Typography>}
           <Grid container spacing={2}>
-            {filteredProducts.map((product) => (
-              <Grid item xs={12} sm={6} md={4} key={product.id}>
-                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  {product.image && (
-                    <CardMedia component="img" height="140" image={product.image} alt={product.name} />
-                  )}
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6">{product.name}</Typography>
-                    <Typography variant="subtitle1" color="text.secondary">
-                      Rp {product.price.toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      {product.description}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 2, color: product.inStock ? 'green' : 'red', fontWeight: 'bold' }}
-                    >
-                      {product.inStock ? 'Tersedia' : 'Habis'}
-                    </Typography>
-                  </CardContent>
-                </Card>
+            {filteredProducts.map((product) => {
+              const stockStatus = getStockStatus(product.stock);
+              return (
+                <Grid item xs={12} sm={6} md={4} key={product.id}>
+                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {product.image && (
+                      <CardMedia component="img" height="140" image={product.image} alt={product.name} />
+                    )}
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Typography variant="h6">{product.name}</Typography>
+                      <Typography variant="subtitle1" color="text.secondary">
+                        Rp {product.price.toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 1 }}>
+                        {product.description}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 2, color: stockStatus.color, fontWeight: 'bold' }}
+                      >
+                        {stockStatus.text}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+            {filteredProducts.length === 0 && !loading && (
+              <Grid item xs={12}>
+                <Typography align="center">Tidak ada produk ditemukan.</Typography>
               </Grid>
-            ))}
+            )}
           </Grid>
           <Box sx={{ mt: 4, textAlign: 'center' }}>
             <Typography variant="body1">Silakan informasikan pilihan Anda kepada Kasir.</Typography>

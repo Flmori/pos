@@ -36,7 +36,7 @@ const StockReportCard = ({ products, categories }) => {
 
     // Filter by category
     if (selectedCategory) {
-      filtered = filtered.filter(p => p.category === selectedCategory);
+      filtered = filtered.filter(p => p.Category?.nama_kategori === selectedCategory);
     }
 
     // Filter by min stock
@@ -159,21 +159,99 @@ const StockReportCard = ({ products, categories }) => {
       alert('Tidak ada data untuk diekspor ke PDF');
       return;
     }
-    html2canvas(reportRef.current, { scale: 2 }).then(async (canvas) => {
+
+    const rowsPerPage = 25;
+    const totalRows = filteredProducts.length;
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+
+    const generatePage = async (pageIndex) => {
+      // Slice the data for the current page
+      const pageData = filteredProducts.slice(pageIndex * rowsPerPage, (pageIndex + 1) * rowsPerPage);
+
+      // Create a temporary table element for the page data
+      const tempTable = document.createElement('table');
+      tempTable.style.width = '100%';
+      tempTable.style.borderCollapse = 'collapse';
+
+      // Create table header
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['ID Produk', 'Nama Produk', 'Kategori', 'Stok Saat Ini'].forEach(text => {
+        const th = document.createElement('th');
+        th.style.border = '1px solid black';
+        th.style.padding = '4px';
+        th.style.fontWeight = 'bold';
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      tempTable.appendChild(thead);
+
+      // Create table body
+      const tbody = document.createElement('tbody');
+      pageData.forEach(product => {
+        const row = document.createElement('tr');
+        [product.id_barang, product.nama_barang, product.Category?.nama_kategori, product.stok].forEach(text => {
+          const td = document.createElement('td');
+          td.style.border = '1px solid black';
+          td.style.padding = '4px';
+          td.textContent = text ?? '';
+          row.appendChild(td);
+        });
+        tbody.appendChild(row);
+      });
+      tempTable.appendChild(tbody);
+
+      // Append the table to a container div
+      const container = document.createElement('div');
+      container.style.width = '210mm'; // A4 width
+      container.style.position = 'fixed'; // Fix position to avoid layout shift
+      container.style.left = '-9999px'; // Move offscreen
+      container.style.top = '0';
+
+      // Create and append title element
+      const titleElement = document.createElement('div');
+      titleElement.style.textAlign = 'center';
+      titleElement.style.fontWeight = 'bold';
+      titleElement.style.fontSize = '18px';
+      titleElement.style.marginBottom = '12px';
+      titleElement.textContent = 'Laporan Stok Barang';
+      container.appendChild(titleElement);
+
+      container.appendChild(tempTable);
+
+      // Append container temporarily to the document body to fix html2canvas error
+      document.body.appendChild(container);
+
+      // Render the container to canvas
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: true, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight });
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      // Remove the container from the document after rendering
+      document.body.removeChild(container);
 
       // Add header
       await addPdfHeaderReceiving(pdf);
 
-      // Add image below header
+      // Add image
       pdf.addImage(imgData, 'PNG', 0, 44, pdfWidth, pdfHeight);
 
+      if (pageIndex < totalPages - 1) {
+        pdf.addPage();
+      }
+    };
+
+    (async () => {
+      for (let i = 0; i < totalPages; i++) {
+        await generatePage(i);
+      }
       pdf.save('Laporan_Stok_Barang.pdf');
-    }).catch(error => {
-      alert('Gagal mengekspor ke PDF: ' + error.message);
+    })().catch(error => {
+      alert('Gagal mengekspor ke PDF: ' + (error?.message ?? error));
     });
   };
 
@@ -247,11 +325,11 @@ const StockReportCard = ({ products, categories }) => {
             <TableBody>
               {filteredProducts.length > 0 ? (
                 filteredProducts.map(product => (
-                  <TableRow key={product.id}>
-                    <TableCell>{product.id}</TableCell>
-                    <TableCell>{product.name}</TableCell>
-                    <TableCell>{product.category}</TableCell>
-                    <TableCell>{product.stock}</TableCell>
+                  <TableRow key={product.id_barang}>
+                    <TableCell>{product.id_barang}</TableCell>
+                    <TableCell>{product.nama_barang}</TableCell>
+                    <TableCell>{product.Category?.nama_kategori}</TableCell>
+                    <TableCell>{product.stok}</TableCell>
                   </TableRow>
                 ))
               ) : (

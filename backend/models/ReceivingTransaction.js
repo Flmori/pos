@@ -1,7 +1,5 @@
 import { DataTypes, Op } from 'sequelize';
 import sequelize from '../config/database.js';
-import User from './User.js';
-
 const ReceivingTransaction = sequelize.define('ReceivingTransaction', {
   id_penerimaan: {
     type: DataTypes.STRING(10),
@@ -24,10 +22,10 @@ const ReceivingTransaction = sequelize.define('ReceivingTransaction', {
     allowNull: true,
   },
   id_pegawai_gudang: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING(10),
     allowNull: false,
     references: {
-      model: User,
+      model: 'users',
       key: 'id_user',
     },
   },
@@ -37,8 +35,6 @@ const ReceivingTransaction = sequelize.define('ReceivingTransaction', {
   createdAt: 'created_at',
   updatedAt: 'updated_at',
 });
-
-ReceivingTransaction.belongsTo(User, { foreignKey: 'id_pegawai_gudang' });
 
 import moment from 'moment';
 

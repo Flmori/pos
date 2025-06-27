@@ -4,9 +4,9 @@ import Category from './Category.js';
 
 const Product = sequelize.define('Product', {
   id_barang: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING(10),
     primaryKey: true,
-    autoIncrement: true,
+    allowNull: false,
   },
   nama_barang: {
     type: DataTypes.STRING(255),
@@ -29,7 +29,7 @@ const Product = sequelize.define('Product', {
     allowNull: false,
   },
   id_kategori: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING(10),
     allowNull: false,
     references: {
       model: Category,

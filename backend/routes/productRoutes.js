@@ -1,13 +1,25 @@
 import express from 'express';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
-// Get all products with category
+// Get all products with category and optional search filter
 router.get('/', async (req, res) => {
   try {
+    const search = req.query.search;
+    const whereClause = {};
+
+    if (search) {
+      whereClause[Op.or] = [
+        { nama_barang: { [Op.like]: `%${search}%` } },
+        { id_barang: { [Op.like]: `%${search}%` } }
+      ];
+    }
+
     const products = await Product.findAll({
+      where: whereClause,
       include: [
         {
           model: Category,
@@ -18,6 +30,32 @@ router.get('/', async (req, res) => {
     res.json(products);
   } catch (error) {
     console.error('Product Route Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// New route for stock report
+router.get('/stock-report', async (req, res) => {
+  try {
+    const products = await Product.findAll({
+      where: {
+        stok: {
+          [Op.lt]: 20
+        }
+      },
+      include: [
+        {
+          model: Category,
+          attributes: ['nama_kategori']
+        }
+      ],
+      order: [['nama_barang', 'ASC']]
+    });
+    console.log(`Stock report products count: ${products.length}`);
+    console.log('Products:', products.map(p => ({ id: p.id_barang, name: p.nama_barang, stock: p.stok })));
+    res.json(products);
+  } catch (error) {
+    console.error('Stock Report Error:', error);
     res.status(500).json({ error: error.message });
   }
 });

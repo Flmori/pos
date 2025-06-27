@@ -29,13 +29,20 @@ const DailyCustomerCountReportCard = ({ customerData }) => {
   const [filteredData, setFilteredData] = useState(customerData);
 
   useEffect(() => {
+    console.log('customerData:', customerData);
     let filtered = customerData;
 
     if (fromDate) {
-      filtered = filtered.filter(item => new Date(item.tgl_daftar_member) >= new Date(fromDate));
+      filtered = filtered.filter(item => {
+        if (!item.tgl_daftar_member) return false;
+        return new Date(item.tgl_daftar_member) >= new Date(fromDate);
+      });
     }
     if (toDate) {
-      filtered = filtered.filter(item => new Date(item.tgl_daftar_member) <= new Date(toDate));
+      filtered = filtered.filter(item => {
+        if (!item.tgl_daftar_member) return false;
+        return new Date(item.tgl_daftar_member) <= new Date(toDate);
+      });
     }
     if (selectedMemberStatus) {
       if (selectedMemberStatus === 'Member Baru') {
@@ -45,12 +52,25 @@ const DailyCustomerCountReportCard = ({ customerData }) => {
       }
     }
 
+    console.log('filteredData:', filtered);
     setFilteredData(filtered);
   }, [customerData, fromDate, toDate, selectedMemberStatus]);
 
-  // Aggregate counts per date
+  // Helper function to format date to YYYY-MM-DD
+  const formatDate = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    if (isNaN(d)) return null;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Aggregate counts per date with formatted date keys
   const countsByDate = filteredData.reduce((acc, item) => {
-    const date = item.tgl_daftar_member;
+    const date = formatDate(item.tgl_daftar_member);
+    if (!date) return acc; // skip if no valid date
     if (!acc[date]) {
       acc[date] = { total: 0, member: 0 };
     }
@@ -146,7 +166,7 @@ const DailyCustomerCountReportCard = ({ customerData }) => {
 
       // Create workbook and append worksheet
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Laporan Jumlah Pelanggan per Hari');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Laporan Pelanggan');
 
       // Write workbook to binary string with cellStyles enabled
       const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary', cellStyles: true });
@@ -167,27 +187,98 @@ const DailyCustomerCountReportCard = ({ customerData }) => {
   };
 
   const handleExportPDF = () => {
-    const input = document.getElementById('daily-customer-count-report-table');
-    if (!input) {
-      alert('Tabel laporan tidak ditemukan untuk ekspor PDF.');
-      return;
-    }
-    html2canvas(input).then(async (canvas) => {
+    const rowsPerPage = 25;
+    const totalRows = dates.length;
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+
+    const generatePage = async (pageIndex) => {
+      // Slice the data for the current page
+      const pageDates = dates.slice(pageIndex * rowsPerPage, (pageIndex + 1) * rowsPerPage);
+
+      // Create a temporary table element for the page data
+      const tempTable = document.createElement('table');
+      tempTable.style.width = '100%';
+      tempTable.style.borderCollapse = 'collapse';
+
+      // Create table header
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Tanggal', 'Jumlah Pelanggan Baru', 'Jumlah Member Baru'].forEach(text => {
+        const th = document.createElement('th');
+        th.style.border = '1px solid black';
+        th.style.padding = '4px';
+        th.style.fontWeight = 'bold';
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      tempTable.appendChild(thead);
+
+      // Create table body
+      const tbody = document.createElement('tbody');
+      pageDates.forEach(date => {
+        const row = document.createElement('tr');
+        [date, countsByDate[date].total, countsByDate[date].member].forEach(text => {
+          const td = document.createElement('td');
+          td.style.border = '1px solid black';
+          td.style.padding = '4px';
+          td.textContent = text ?? '';
+          row.appendChild(td);
+        });
+        tbody.appendChild(row);
+      });
+      tempTable.appendChild(tbody);
+
+      // Append the table to a container div
+      const container = document.createElement('div');
+      container.style.width = '210mm'; // A4 width
+      container.style.position = 'fixed'; // Fix position to avoid layout shift
+      container.style.left = '-9999px'; // Move offscreen
+      container.style.top = '0';
+
+      // Create and append title element
+      const titleElement = document.createElement('div');
+      titleElement.style.textAlign = 'center';
+      titleElement.style.fontWeight = 'bold';
+      titleElement.style.fontSize = '18px';
+      titleElement.style.marginBottom = '12px';
+      titleElement.textContent = 'Laporan Jumlah Pelanggan per Hari';
+      container.appendChild(titleElement);
+
+      container.appendChild(tempTable);
+
+      // Append container temporarily to the document body to fix html2canvas error
+      document.body.appendChild(container);
+
+      // Render the container to canvas
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: true, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight });
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      // Remove the container from the document after rendering
+      document.body.removeChild(container);
+
       // Add header
       await addPdfHeaderReceiving(pdf);
 
-      // Add image below header
+      // Add image
       pdf.addImage(imgData, 'PNG', 0, 44, pdfWidth, pdfHeight);
 
+      if (pageIndex < totalPages - 1) {
+        pdf.addPage();
+      }
+    };
+
+    (async () => {
+      for (let i = 0; i < totalPages; i++) {
+        await generatePage(i);
+      }
       pdf.save('Laporan_Jumlah_Pelanggan_per_Hari.pdf');
-    }).catch(error => {
-      alert('Gagal mengekspor ke PDF: ' + error.message);
+    })().catch(error => {
+      alert('Gagal mengekspor ke PDF: ' + (error?.message ?? error));
     });
   };
 
