@@ -4,6 +4,10 @@
 
 Toko KyuRyu adalah sistem Point of Sale (POS) yang komprehensif yang dirancang untuk mempermudah operasi ritel. Sistem ini menampilkan dashboard admin berbasis React yang modern dan responsif untuk mengelola transaksi penjualan, transaksi penerimaan, inventaris produk, data pelanggan, manajemen pengguna, dan laporan terperinci. API backend dibangun dengan Node.js dan Express.js, terhubung ke database MySQL untuk penyimpanan dan pengelolaan data yang andal.
 
+## Source Code
+
+Source code proyek ini dapat diakses melalui repositori GitHub: [https://github.com/Flmori/pos.git]
+
 ## Teknologi yang Digunakan dan Plugin
 
 ### Frontend
